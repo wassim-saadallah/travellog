@@ -1,16 +1,12 @@
 const mongoose = require('mongoose')
-const getUserModel = require('./user')
-const getLogModel = require('./log')
-
-module.exports = function() {
-  db = mongoose.connect('mongodb://localhost:27), options, callback)
+const UserModel = require('./user')
+const LogModel = require('./log')
 
 
-.a:q
-q:q
-:
+module.exports = { UserModel, LogModel }
 
-
-
-
+module.exports.connectDb = function () {
+  console.log('Connecting to database ...')
+  return mongoose.connect(process.env.REMOTE_DB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+}
 

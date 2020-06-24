@@ -4,6 +4,7 @@ const helmet = require('helmet')
 const cors = require('cors')
 
 const userRouter = require('./routes/users')
+const { connectDb } = require('./models/init')
 
 require('dotenv').config()
 
@@ -15,7 +16,10 @@ app.use(cors())
 
 app.use('/users', userRouter)
 
-
-app.listen(3000, () => {
-  console.log('application started at port 3000')
+connectDb().then(async () => {
+  app.listen(3000, () => {
+    console.log('application started at port 3000')
+  })
+}).catch(err => {
+  console.log('A database connection error has occured')
 })

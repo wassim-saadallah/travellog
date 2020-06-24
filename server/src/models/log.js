@@ -1,8 +1,8 @@
-const { Schema, model, SchemaTypes } = require('mongoose')
+const mongoose = require('mongoose')
 
-const Schema = new Schema({
+const UserSchema = new mongoose.Schema({
   user: {
-    type: SchemaTypes.ObjectId,
+    type: mongoose.SchemaTypes.ObjectId,
     required: true,
   },
   location: {
@@ -11,7 +11,7 @@ const Schema = new Schema({
       enum: ['Point'],
       required: true,
     },
-    coordinates:  {
+    coordinates: {
       type: [Number],
       required: true,
     },
@@ -26,4 +26,4 @@ const Schema = new Schema({
   }
 })
 
-module.exports = model('log', UserSchema, 'log')
+module.exports = mongoose.model('log', UserSchema, 'log')
