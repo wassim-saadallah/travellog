@@ -2,11 +2,13 @@
   "version": 3,
   "file": "bundle.css",
   "sources": [
-    "..\\..\\App.svelte"
+    "..\\..\\App.svelte",
+    "..\\..\\Login.svelte"
   ],
   "sourcesContent": [
-    "<script>\r\n  import * as L from \"leaflet\";\r\n  import { onMount } from \"svelte\";\r\n  onMount(async () => {\r\n    const map = L.map(\"map\", {\r\n      center: [43.00, -79.00],\r\n      zoom: 9,\r\n    })\r\n    \r\n    L.tileLayer(\"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png\", {\r\n      attribution:\r\n        '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors',\r\n    }).addTo(map)\r\n    \r\n    map.invalidateSize()\r\n  })\r\n\r\n</script>\r\n\r\n<style>\r\n  main {\r\n    width: 100%;\r\n    height: 100%;\r\n  }\r\n</style>\r\n\r\n<main id=\"map\"></main>"
+    "<script>\r\n\timport * as L from 'leaflet';\r\n\timport { onMount } from 'svelte';\r\n\timport Login from './Login.svelte';\r\n\tonMount(async () => {\r\n\t\tconst map = L.map('map', {\r\n\t\t\tcenter: [43.0, -79.0],\r\n\t\t\tzoom: 9,\r\n\t\t});\r\n\r\n\t\tL.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {\r\n\t\t\tattribution:\r\n\t\t\t\t'&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors',\r\n\t\t}).addTo(map);\r\n\r\n\t\tmap.invalidateSize();\r\n\t});\r\n</script>\r\n\r\n<style>\r\n\tmain {\r\n\t\tposition: relative;\r\n\t}\r\n</style>\r\n\r\n<main>\r\n\t<div id=\"map\" />\r\n\t<Login />\r\n</main>\r\n",
+    "<script>\r\n\r\n</script>\r\n\r\n<style>\r\n\t.overlay {\r\n\t\tposition: absolute;\r\n\t\ttop: 0;\r\n\t\tleft: 0;\r\n\t\tz-index: 314159;\r\n\t\tpointer-events: none;\r\n\t}\r\n\t.overlay .btn {\r\n\t\tpointer-events: initial;\r\n\t}\r\n</style>\r\n\r\n<div class=\"row-fluid overlay asd\">\r\n\t<div class=\"span1\">\r\n\t\t<button class=\"btn btn-primary\">Button</button>\r\n\t</div>\r\n\t<div class=\"span2\">\r\n\t\t<button class=\"btn\">Button</button>\r\n\t</div>\r\n</div>\r\n"
   ],
   "names": [],
-  "mappings": "AAoBE,IAAI,cAAC,CAAC,AACJ,KAAK,CAAE,IAAI,CACX,MAAM,CAAE,IAAI,AACd,CAAC"
+  "mappings": "AAoBC,IAAI,cAAC,CAAC,AACL,QAAQ,CAAE,QAAQ,AACnB,CAAC;ACjBD,QAAQ,4BAAC,CAAC,AACT,QAAQ,CAAE,QAAQ,CAClB,GAAG,CAAE,CAAC,CACN,IAAI,CAAE,CAAC,CACP,OAAO,CAAE,MAAM,CACf,cAAc,CAAE,IAAI,AACrB,CAAC,AACD,sBAAQ,CAAC,IAAI,cAAC,CAAC,AACd,cAAc,CAAE,OAAO,AACxB,CAAC"
 }
