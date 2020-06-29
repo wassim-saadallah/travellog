@@ -4,6 +4,7 @@ var app = (function () {
     'use strict';
 
     function noop() { }
+    const identity = x => x;
     function add_location(element, file, line, column, char) {
         element.__svelte_meta = {
             loc: { file, line, column, char }
@@ -24,6 +25,44 @@ var app = (function () {
     function safe_not_equal(a, b) {
         return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
     }
+    function null_to_empty(value) {
+        return value == null ? '' : value;
+    }
+
+    const is_client = typeof window !== 'undefined';
+    let now = is_client
+        ? () => window.performance.now()
+        : () => Date.now();
+    let raf = is_client ? cb => requestAnimationFrame(cb) : noop;
+
+    const tasks = new Set();
+    function run_tasks(now) {
+        tasks.forEach(task => {
+            if (!task.c(now)) {
+                tasks.delete(task);
+                task.f();
+            }
+        });
+        if (tasks.size !== 0)
+            raf(run_tasks);
+    }
+    /**
+     * Creates a new task that runs on each raf frame
+     * until it returns a falsy value or is aborted
+     */
+    function loop(callback) {
+        let task;
+        if (tasks.size === 0)
+            raf(run_tasks);
+        return {
+            promise: new Promise(fulfill => {
+                tasks.add(task = { c: callback, f: fulfill });
+            }),
+            abort() {
+                tasks.delete(task);
+            }
+        };
+    }
 
     function append(target, node) {
         target.appendChild(node);
@@ -43,6 +82,10 @@ var app = (function () {
     function space() {
         return text(' ');
     }
+    function listen(node, event, handler, options) {
+        node.addEventListener(event, handler, options);
+        return () => node.removeEventListener(event, handler, options);
+    }
     function attr(node, attribute, value) {
         if (value == null)
             node.removeAttribute(attribute);
@@ -52,10 +95,74 @@ var app = (function () {
     function children(element) {
         return Array.from(element.childNodes);
     }
+    function set_input_value(input, value) {
+        input.value = value == null ? '' : value;
+    }
     function custom_event(type, detail) {
         const e = document.createEvent('CustomEvent');
         e.initCustomEvent(type, false, false, detail);
         return e;
+    }
+
+    const active_docs = new Set();
+    let active = 0;
+    // https://github.com/darkskyapp/string-hash/blob/master/index.js
+    function hash(str) {
+        let hash = 5381;
+        let i = str.length;
+        while (i--)
+            hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
+        return hash >>> 0;
+    }
+    function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
+        const step = 16.666 / duration;
+        let keyframes = '{\n';
+        for (let p = 0; p <= 1; p += step) {
+            const t = a + (b - a) * ease(p);
+            keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
+        }
+        const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
+        const name = `__svelte_${hash(rule)}_${uid}`;
+        const doc = node.ownerDocument;
+        active_docs.add(doc);
+        const stylesheet = doc.__svelte_stylesheet || (doc.__svelte_stylesheet = doc.head.appendChild(element('style')).sheet);
+        const current_rules = doc.__svelte_rules || (doc.__svelte_rules = {});
+        if (!current_rules[name]) {
+            current_rules[name] = true;
+            stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
+        }
+        const animation = node.style.animation || '';
+        node.style.animation = `${animation ? `${animation}, ` : ``}${name} ${duration}ms linear ${delay}ms 1 both`;
+        active += 1;
+        return name;
+    }
+    function delete_rule(node, name) {
+        const previous = (node.style.animation || '').split(', ');
+        const next = previous.filter(name
+            ? anim => anim.indexOf(name) < 0 // remove specific animation
+            : anim => anim.indexOf('__svelte') === -1 // remove all Svelte animations
+        );
+        const deleted = previous.length - next.length;
+        if (deleted) {
+            node.style.animation = next.join(', ');
+            active -= deleted;
+            if (!active)
+                clear_rules();
+        }
+    }
+    function clear_rules() {
+        raf(() => {
+            if (active)
+                return;
+            active_docs.forEach(doc => {
+                const stylesheet = doc.__svelte_stylesheet;
+                let i = stylesheet.cssRules.length;
+                while (i--)
+                    stylesheet.deleteRule(i);
+                doc.__svelte_rules = {};
+            });
+            active_docs.clear();
+        });
     }
 
     let current_component;
@@ -133,6 +240,20 @@ var app = (function () {
             $$.after_update.forEach(add_render_callback);
         }
     }
+
+    let promise;
+    function wait() {
+        if (!promise) {
+            promise = Promise.resolve();
+            promise.then(() => {
+                promise = null;
+            });
+        }
+        return promise;
+    }
+    function dispatch(node, direction, kind) {
+        node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
+    }
     const outroing = new Set();
     let outros;
     function transition_in(block, local) {
@@ -157,6 +278,69 @@ var app = (function () {
             block.o(local);
         }
     }
+    const null_transition = { duration: 0 };
+    function create_out_transition(node, fn, params) {
+        let config = fn(node, params);
+        let running = true;
+        let animation_name;
+        const group = outros;
+        group.r += 1;
+        function go() {
+            const { delay = 0, duration = 300, easing = identity, tick = noop, css } = config || null_transition;
+            if (css)
+                animation_name = create_rule(node, 1, 0, duration, delay, easing, css);
+            const start_time = now() + delay;
+            const end_time = start_time + duration;
+            add_render_callback(() => dispatch(node, false, 'start'));
+            loop(now => {
+                if (running) {
+                    if (now >= end_time) {
+                        tick(0, 1);
+                        dispatch(node, false, 'end');
+                        if (!--group.r) {
+                            // this will result in `end()` being called,
+                            // so we don't need to clean up here
+                            run_all(group.c);
+                        }
+                        return false;
+                    }
+                    if (now >= start_time) {
+                        const t = easing((now - start_time) / duration);
+                        tick(1 - t, t);
+                    }
+                }
+                return running;
+            });
+        }
+        if (is_function(config)) {
+            wait().then(() => {
+                // @ts-ignore
+                config = config();
+                go();
+            });
+        }
+        else {
+            go();
+        }
+        return {
+            end(reset) {
+                if (reset && config.tick) {
+                    config.tick(1, 0);
+                }
+                if (running) {
+                    if (animation_name)
+                        delete_rule(node, animation_name);
+                    running = false;
+                }
+            }
+        };
+    }
+
+    const globals = (typeof window !== 'undefined'
+        ? window
+        : typeof globalThis !== 'undefined'
+            ? globalThis
+            : global);
     function create_component(block) {
         block && block.c();
     }
@@ -288,6 +472,19 @@ var app = (function () {
     function detach_dev(node) {
         dispatch_dev("SvelteDOMRemove", { node });
         detach(node);
+    }
+    function listen_dev(node, event, handler, options, has_prevent_default, has_stop_propagation) {
+        const modifiers = options === true ? ["capture"] : options ? Array.from(Object.keys(options)) : [];
+        if (has_prevent_default)
+            modifiers.push('preventDefault');
+        if (has_stop_propagation)
+            modifiers.push('stopPropagation');
+        dispatch_dev("SvelteDOMAddEventListener", { node, event, handler, modifiers });
+        const dispose = listen(node, event, handler, options);
+        return () => {
+            dispatch_dev("SvelteDOMRemoveEventListener", { node, event, handler, modifiers });
+            dispose();
+        };
     }
     function attr_dev(node, attribute, value) {
         attr(node, attribute, value);
@@ -14421,55 +14618,277 @@ var app = (function () {
         __moduleExports: leafletSrc
     }));
 
+    function fade(node, { delay = 0, duration = 400, easing = identity }) {
+        const o = +getComputedStyle(node).opacity;
+        return {
+            delay,
+            duration,
+            easing,
+            css: t => `opacity: ${t * o}`
+        };
+    }
+
+    const subscriber_queue = [];
+    /**
+     * Create a `Writable` store that allows both updating and reading by subscription.
+     * @param {*=}value initial value
+     * @param {StartStopNotifier=}start start and stop notifications for subscriptions
+     */
+    function writable(value, start = noop) {
+        let stop;
+        const subscribers = [];
+        function set(new_value) {
+            if (safe_not_equal(value, new_value)) {
+                value = new_value;
+                if (stop) { // store is ready
+                    const run_queue = !subscriber_queue.length;
+                    for (let i = 0; i < subscribers.length; i += 1) {
+                        const s = subscribers[i];
+                        s[1]();
+                        subscriber_queue.push(s, value);
+                    }
+                    if (run_queue) {
+                        for (let i = 0; i < subscriber_queue.length; i += 2) {
+                            subscriber_queue[i][0](subscriber_queue[i + 1]);
+                        }
+                        subscriber_queue.length = 0;
+                    }
+                }
+            }
+        }
+        function update(fn) {
+            set(fn(value));
+        }
+        function subscribe(run, invalidate = noop) {
+            const subscriber = [run, invalidate];
+            subscribers.push(subscriber);
+            if (subscribers.length === 1) {
+                stop = start(set) || noop;
+            }
+            run(value);
+            return () => {
+                const index = subscribers.indexOf(subscriber);
+                if (index !== -1) {
+                    subscribers.splice(index, 1);
+                }
+                if (subscribers.length === 0) {
+                    stop();
+                    stop = null;
+                }
+            };
+        }
+        return { set, update, subscribe };
+    }
+
+    let isLoggedIn = writable(false);
+    let token = writable('');
+    let map = writable(undefined);
+
     /* src\Login.svelte generated by Svelte v3.23.2 */
 
+    const { console: console_1 } = globals;
     const file = "src\\Login.svelte";
 
-    function create_fragment(ctx) {
-    	let div2;
-    	let div0;
-    	let button0;
-    	let t1;
-    	let div1;
-    	let button1;
+    // (114:6) {#if dangerClass != ''}
+    function create_if_block(ctx) {
+    	let p;
 
     	const block = {
     		c: function create() {
-    			div2 = element("div");
-    			div0 = element("div");
-    			button0 = element("button");
-    			button0.textContent = "Button";
-    			t1 = space();
+    			p = element("p");
+    			p.textContent = "This email is invalid";
+    			attr_dev(p, "class", "help is-danger");
+    			add_location(p, file, 114, 6, 2526);
+    		},
+    		m: function mount(target, anchor) {
+    			insert_dev(target, p, anchor);
+    		},
+    		d: function destroy(detaching) {
+    			if (detaching) detach_dev(p);
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_if_block.name,
+    		type: "if",
+    		source: "(114:6) {#if dangerClass != ''}",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    function create_fragment(ctx) {
+    	let div8;
+    	let div7;
+    	let section;
+    	let div1;
+    	let div0;
+    	let h1;
+    	let t1;
+    	let h3;
+    	let t3;
+    	let div3;
+    	let label;
+    	let t5;
+    	let div2;
+    	let input;
+    	let input_class_value;
+    	let t6;
+    	let t7;
+    	let div6;
+    	let div4;
+    	let button0;
+    	let t9;
+    	let div5;
+    	let button1;
+    	let div8_outro;
+    	let current;
+    	let mounted;
+    	let dispose;
+    	let if_block = /*dangerClass*/ ctx[1] != "" && create_if_block(ctx);
+
+    	const block = {
+    		c: function create() {
+    			div8 = element("div");
+    			div7 = element("div");
+    			section = element("section");
     			div1 = element("div");
+    			div0 = element("div");
+    			h1 = element("h1");
+    			h1.textContent = "Travel Log";
+    			t1 = space();
+    			h3 = element("h3");
+    			h3.textContent = "Save your memories";
+    			t3 = space();
+    			div3 = element("div");
+    			label = element("label");
+    			label.textContent = "Email";
+    			t5 = space();
+    			div2 = element("div");
+    			input = element("input");
+    			t6 = space();
+    			if (if_block) if_block.c();
+    			t7 = space();
+    			div6 = element("div");
+    			div4 = element("div");
+    			button0 = element("button");
+    			button0.textContent = "Login";
+    			t9 = space();
+    			div5 = element("div");
     			button1 = element("button");
-    			button1.textContent = "Button";
-    			attr_dev(button0, "class", "btn btn-primary svelte-6nyzhf");
-    			add_location(button0, file, 19, 2, 265);
-    			attr_dev(div0, "class", "span1");
-    			add_location(div0, file, 18, 1, 242);
-    			attr_dev(button1, "class", "btn svelte-6nyzhf");
-    			add_location(button1, file, 22, 2, 347);
-    			attr_dev(div1, "class", "span2");
-    			add_location(div1, file, 21, 1, 324);
-    			attr_dev(div2, "class", "row-fluid overlay asd svelte-6nyzhf");
-    			add_location(div2, file, 17, 0, 204);
+    			button1.textContent = "Sign Up";
+    			attr_dev(h1, "class", "title svelte-j3i3vx");
+    			add_location(h1, file, 99, 10, 2085);
+    			attr_dev(h3, "class", "subtitle svelte-j3i3vx");
+    			add_location(h3, file, 102, 10, 2156);
+    			attr_dev(div0, "class", "container");
+    			add_location(div0, file, 98, 8, 2050);
+    			attr_dev(div1, "class", "hero-body");
+    			add_location(div1, file, 97, 6, 2017);
+    			attr_dev(section, "class", "hero");
+    			add_location(section, file, 96, 4, 1987);
+    			attr_dev(label, "class", "label");
+    			add_location(label, file, 109, 6, 2305);
+    			attr_dev(input, "class", input_class_value = "input " + /*dangerClass*/ ctx[1] + " svelte-j3i3vx");
+    			attr_dev(input, "type", "email");
+    			attr_dev(input, "placeholder", "Email input");
+    			add_location(input, file, 111, 8, 2378);
+    			attr_dev(div2, "class", "control");
+    			add_location(div2, file, 110, 6, 2347);
+    			attr_dev(div3, "class", "field");
+    			add_location(div3, file, 108, 4, 2278);
+    			attr_dev(button0, "class", "button is-link svelte-j3i3vx");
+    			add_location(button0, file, 119, 8, 2677);
+    			attr_dev(div4, "class", "control");
+    			add_location(div4, file, 118, 6, 2646);
+    			attr_dev(button1, "class", "button is-link svelte-j3i3vx");
+    			add_location(button1, file, 122, 8, 2810);
+    			attr_dev(div5, "class", "control button-container");
+    			add_location(div5, file, 121, 6, 2762);
+    			attr_dev(div6, "class", "field is-grouped");
+    			add_location(div6, file, 117, 4, 2608);
+    			attr_dev(div7, "class", "box svelte-j3i3vx");
+    			add_location(div7, file, 95, 2, 1964);
+    			attr_dev(div8, "class", "overlay svelte-j3i3vx");
+    			add_location(div8, file, 94, 0, 1930);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, div2, anchor);
-    			append_dev(div2, div0);
-    			append_dev(div0, button0);
-    			append_dev(div2, t1);
-    			append_dev(div2, div1);
-    			append_dev(div1, button1);
+    			insert_dev(target, div8, anchor);
+    			append_dev(div8, div7);
+    			append_dev(div7, section);
+    			append_dev(section, div1);
+    			append_dev(div1, div0);
+    			append_dev(div0, h1);
+    			append_dev(div0, t1);
+    			append_dev(div0, h3);
+    			append_dev(div7, t3);
+    			append_dev(div7, div3);
+    			append_dev(div3, label);
+    			append_dev(div3, t5);
+    			append_dev(div3, div2);
+    			append_dev(div2, input);
+    			set_input_value(input, /*email*/ ctx[0]);
+    			append_dev(div3, t6);
+    			if (if_block) if_block.m(div3, null);
+    			append_dev(div7, t7);
+    			append_dev(div7, div6);
+    			append_dev(div6, div4);
+    			append_dev(div4, button0);
+    			append_dev(div6, t9);
+    			append_dev(div6, div5);
+    			append_dev(div5, button1);
+    			current = true;
+
+    			if (!mounted) {
+    				dispose = [
+    					listen_dev(input, "input", /*input_input_handler*/ ctx[4]),
+    					listen_dev(button0, "click", /*submit*/ ctx[2], false, false, false),
+    					listen_dev(button1, "click", /*signup*/ ctx[3], false, false, false)
+    				];
+
+    				mounted = true;
+    			}
     		},
-    		p: noop,
-    		i: noop,
-    		o: noop,
+    		p: function update(ctx, [dirty]) {
+    			if (!current || dirty & /*dangerClass*/ 2 && input_class_value !== (input_class_value = "input " + /*dangerClass*/ ctx[1] + " svelte-j3i3vx")) {
+    				attr_dev(input, "class", input_class_value);
+    			}
+
+    			if (dirty & /*email*/ 1 && input.value !== /*email*/ ctx[0]) {
+    				set_input_value(input, /*email*/ ctx[0]);
+    			}
+
+    			if (/*dangerClass*/ ctx[1] != "") {
+    				if (if_block) ; else {
+    					if_block = create_if_block(ctx);
+    					if_block.c();
+    					if_block.m(div3, null);
+    				}
+    			} else if (if_block) {
+    				if_block.d(1);
+    				if_block = null;
+    			}
+    		},
+    		i: function intro(local) {
+    			if (current) return;
+    			if (div8_outro) div8_outro.end(1);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			div8_outro = create_out_transition(div8, fade, {});
+    			current = false;
+    		},
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div2);
+    			if (detaching) detach_dev(div8);
+    			if (if_block) if_block.d();
+    			if (detaching && div8_outro) div8_outro.end();
+    			mounted = false;
+    			run_all(dispose);
     		}
     	};
 
@@ -14484,16 +14903,88 @@ var app = (function () {
     	return block;
     }
 
-    function instance($$self, $$props) {
+    function instance($$self, $$props, $$invalidate) {
+    	let email = "";
+    	let dangerClass = ""; // "is-danger" if not valid
+
+    	const submit = async () => {
+    		isLoggedIn.set(true);
+    	}; // Todo : return to normal
+    	// if (email === '') {
+    	//   dangerClass = 'is-danger';
+    	//   return;
+
+    	// }
+    	// try {
+    	//   const result = await fetch('http://localhost:3000/user?email=' + email, {
+    	//     headers: {
+    	//       'Content-Type': 'application/json'
+    	//     },
+    	//   }).then(res => res.json())
+    	//   console.log(result);
+    	//   if (result.token) {
+    	//     console.log("Logged in")
+    	//     token.set(result.token);
+    	//     isLoggedIn.set(true);
+    	//   }
+    	// } catch (err) {
+    	//   // TODO: Show error on screen
+    	//   console.log(err);
+    	// }
+    	const signup = async () => {
+    		if (email === "") {
+    			$$invalidate(1, dangerClass = "is-danger");
+    			return;
+    		}
+
+    		try {
+    			const result = await fetch("http://localhost:3000/user", {
+    				method: "POST",
+    				headers: { "Content-Type": "application/json" },
+    				body: JSON.stringify({ email })
+    			}).then(res => res.json());
+
+    			console.log(result);
+    		} catch(err) {
+    			// TODO: Show error on screen
+    			console.log(err);
+    		}
+    	};
+
     	const writable_props = [];
 
     	Object.keys($$props).forEach(key => {
-    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console.warn(`<Login> was created with unknown prop '${key}'`);
+    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1.warn(`<Login> was created with unknown prop '${key}'`);
     	});
 
     	let { $$slots = {}, $$scope } = $$props;
     	validate_slots("Login", $$slots, []);
-    	return [];
+
+    	function input_input_handler() {
+    		email = this.value;
+    		$$invalidate(0, email);
+    	}
+
+    	$$self.$capture_state = () => ({
+    		fade,
+    		isLoggedIn,
+    		token,
+    		email,
+    		dangerClass,
+    		submit,
+    		signup
+    	});
+
+    	$$self.$inject_state = $$props => {
+    		if ("email" in $$props) $$invalidate(0, email = $$props.email);
+    		if ("dangerClass" in $$props) $$invalidate(1, dangerClass = $$props.dangerClass);
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
+    	return [email, dangerClass, submit, signup, input_input_handler];
     }
 
     class Login extends SvelteComponentDev {
@@ -14510,51 +15001,269 @@ var app = (function () {
     	}
     }
 
-    /* src\App.svelte generated by Svelte v3.23.2 */
-    const file$1 = "src\\App.svelte";
+    /* src\Home.svelte generated by Svelte v3.23.2 */
+
+    const { console: console_1$1 } = globals;
+    const file$1 = "src\\Home.svelte";
 
     function create_fragment$1(ctx) {
-    	let main;
-    	let div;
-    	let t;
-    	let login;
-    	let current;
-    	login = new Login({ $$inline: true });
+    	let div1;
+    	let div0;
+    	let aside;
+    	let p0;
+    	let t1;
+    	let ul0;
+    	let li0;
+    	let a0;
+    	let t3;
+    	let li1;
+    	let a1;
+    	let t5;
+    	let p1;
+    	let t7;
+    	let ul2;
+    	let li2;
+    	let a2;
+    	let t9;
+    	let li6;
+    	let a3;
+    	let t11;
+    	let ul1;
+    	let li3;
+    	let a4;
+    	let t13;
+    	let li4;
+    	let a5;
+    	let t15;
+    	let li5;
+    	let a6;
+    	let t17;
+    	let li7;
+    	let a7;
+    	let t19;
+    	let li8;
+    	let a8;
+    	let t21;
+    	let li9;
+    	let a9;
+    	let t23;
+    	let p2;
+    	let t25;
+    	let ul3;
+    	let li10;
+    	let a10;
+    	let t27;
+    	let li11;
+    	let a11;
+    	let t29;
+    	let li12;
+    	let a12;
+    	let div0_class_value;
+    	let t31;
+    	let button;
+    	let img;
+    	let img_src_value;
+    	let mounted;
+    	let dispose;
 
     	const block = {
     		c: function create() {
-    			main = element("main");
-    			div = element("div");
-    			t = space();
-    			create_component(login.$$.fragment);
-    			attr_dev(div, "id", "map");
-    			add_location(div, file$1, 26, 1, 533);
-    			attr_dev(main, "class", "svelte-7j5bro");
-    			add_location(main, file$1, 25, 0, 524);
+    			div1 = element("div");
+    			div0 = element("div");
+    			aside = element("aside");
+    			p0 = element("p");
+    			p0.textContent = "General";
+    			t1 = space();
+    			ul0 = element("ul");
+    			li0 = element("li");
+    			a0 = element("a");
+    			a0.textContent = "Dashboard";
+    			t3 = space();
+    			li1 = element("li");
+    			a1 = element("a");
+    			a1.textContent = "Customers";
+    			t5 = space();
+    			p1 = element("p");
+    			p1.textContent = "Administration";
+    			t7 = space();
+    			ul2 = element("ul");
+    			li2 = element("li");
+    			a2 = element("a");
+    			a2.textContent = "Team Settings";
+    			t9 = space();
+    			li6 = element("li");
+    			a3 = element("a");
+    			a3.textContent = "Manage Your Team";
+    			t11 = space();
+    			ul1 = element("ul");
+    			li3 = element("li");
+    			a4 = element("a");
+    			a4.textContent = "Members";
+    			t13 = space();
+    			li4 = element("li");
+    			a5 = element("a");
+    			a5.textContent = "Plugins";
+    			t15 = space();
+    			li5 = element("li");
+    			a6 = element("a");
+    			a6.textContent = "Add a member";
+    			t17 = space();
+    			li7 = element("li");
+    			a7 = element("a");
+    			a7.textContent = "Invitations";
+    			t19 = space();
+    			li8 = element("li");
+    			a8 = element("a");
+    			a8.textContent = "Cloud Storage Environment Settings";
+    			t21 = space();
+    			li9 = element("li");
+    			a9 = element("a");
+    			a9.textContent = "Authentication";
+    			t23 = space();
+    			p2 = element("p");
+    			p2.textContent = "Transactions";
+    			t25 = space();
+    			ul3 = element("ul");
+    			li10 = element("li");
+    			a10 = element("a");
+    			a10.textContent = "Payments";
+    			t27 = space();
+    			li11 = element("li");
+    			a11 = element("a");
+    			a11.textContent = "Transfers";
+    			t29 = space();
+    			li12 = element("li");
+    			a12 = element("a");
+    			a12.textContent = "Balance";
+    			t31 = space();
+    			button = element("button");
+    			img = element("img");
+    			attr_dev(p0, "class", "menu-label");
+    			add_location(p0, file$1, 62, 6, 1215);
+    			attr_dev(a0, "class", "is-active");
+    			add_location(a0, file$1, 66, 12, 1310);
+    			add_location(li0, file$1, 66, 8, 1306);
+    			add_location(a1, file$1, 67, 12, 1363);
+    			add_location(li1, file$1, 67, 8, 1359);
+    			attr_dev(ul0, "class", "menu-list");
+    			add_location(ul0, file$1, 65, 6, 1274);
+    			attr_dev(p1, "class", "menu-label");
+    			add_location(p1, file$1, 69, 6, 1405);
+    			add_location(a2, file$1, 73, 12, 1507);
+    			add_location(li2, file$1, 73, 8, 1503);
+    			add_location(a3, file$1, 75, 10, 1558);
+    			add_location(a4, file$1, 77, 16, 1615);
+    			add_location(li3, file$1, 77, 12, 1611);
+    			add_location(a5, file$1, 78, 16, 1652);
+    			add_location(li4, file$1, 78, 12, 1648);
+    			add_location(a6, file$1, 79, 16, 1689);
+    			add_location(li5, file$1, 79, 12, 1685);
+    			add_location(ul1, file$1, 76, 10, 1593);
+    			add_location(li6, file$1, 74, 8, 1542);
+    			add_location(a7, file$1, 82, 12, 1759);
+    			add_location(li7, file$1, 82, 8, 1755);
+    			add_location(a8, file$1, 83, 12, 1796);
+    			add_location(li8, file$1, 83, 8, 1792);
+    			add_location(a9, file$1, 84, 12, 1856);
+    			add_location(li9, file$1, 84, 8, 1852);
+    			attr_dev(ul2, "class", "menu-list");
+    			add_location(ul2, file$1, 72, 6, 1471);
+    			attr_dev(p2, "class", "menu-label");
+    			add_location(p2, file$1, 86, 6, 1903);
+    			add_location(a10, file$1, 90, 12, 2003);
+    			add_location(li10, file$1, 90, 8, 1999);
+    			add_location(a11, file$1, 91, 12, 2037);
+    			add_location(li11, file$1, 91, 8, 2033);
+    			add_location(a12, file$1, 92, 12, 2072);
+    			add_location(li12, file$1, 92, 8, 2068);
+    			attr_dev(ul3, "class", "menu-list");
+    			add_location(ul3, file$1, 89, 6, 1967);
+    			attr_dev(aside, "class", "menu");
+    			add_location(aside, file$1, 61, 4, 1187);
+    			attr_dev(div0, "class", div0_class_value = "" + (null_to_empty("box" + (/*sideMenuOpen*/ ctx[0] ? " sideMenuOpen" : "")) + " svelte-1sclgn0"));
+    			add_location(div0, file$1, 60, 1, 1120);
+    			if (img.src !== (img_src_value = "https://img.icons8.com/material-sharp/24/000000/menu.png")) attr_dev(img, "src", img_src_value);
+    			add_location(img, file$1, 96, 54, 2184);
+    			attr_dev(button, "class", "button is-rounded svelte-1sclgn0");
+    			add_location(button, file$1, 96, 1, 2131);
+    			attr_dev(div1, "class", "overlay svelte-1sclgn0");
+    			add_location(div1, file$1, 59, 0, 1096);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, main, anchor);
-    			append_dev(main, div);
-    			append_dev(main, t);
-    			mount_component(login, main, null);
-    			current = true;
+    			insert_dev(target, div1, anchor);
+    			append_dev(div1, div0);
+    			append_dev(div0, aside);
+    			append_dev(aside, p0);
+    			append_dev(aside, t1);
+    			append_dev(aside, ul0);
+    			append_dev(ul0, li0);
+    			append_dev(li0, a0);
+    			append_dev(ul0, t3);
+    			append_dev(ul0, li1);
+    			append_dev(li1, a1);
+    			append_dev(aside, t5);
+    			append_dev(aside, p1);
+    			append_dev(aside, t7);
+    			append_dev(aside, ul2);
+    			append_dev(ul2, li2);
+    			append_dev(li2, a2);
+    			append_dev(ul2, t9);
+    			append_dev(ul2, li6);
+    			append_dev(li6, a3);
+    			append_dev(li6, t11);
+    			append_dev(li6, ul1);
+    			append_dev(ul1, li3);
+    			append_dev(li3, a4);
+    			append_dev(ul1, t13);
+    			append_dev(ul1, li4);
+    			append_dev(li4, a5);
+    			append_dev(ul1, t15);
+    			append_dev(ul1, li5);
+    			append_dev(li5, a6);
+    			append_dev(ul2, t17);
+    			append_dev(ul2, li7);
+    			append_dev(li7, a7);
+    			append_dev(ul2, t19);
+    			append_dev(ul2, li8);
+    			append_dev(li8, a8);
+    			append_dev(ul2, t21);
+    			append_dev(ul2, li9);
+    			append_dev(li9, a9);
+    			append_dev(aside, t23);
+    			append_dev(aside, p2);
+    			append_dev(aside, t25);
+    			append_dev(aside, ul3);
+    			append_dev(ul3, li10);
+    			append_dev(li10, a10);
+    			append_dev(ul3, t27);
+    			append_dev(ul3, li11);
+    			append_dev(li11, a11);
+    			append_dev(ul3, t29);
+    			append_dev(ul3, li12);
+    			append_dev(li12, a12);
+    			append_dev(div1, t31);
+    			append_dev(div1, button);
+    			append_dev(button, img);
+
+    			if (!mounted) {
+    				dispose = listen_dev(button, "click", /*onclick*/ ctx[1], false, false, false);
+    				mounted = true;
+    			}
     		},
-    		p: noop,
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(login.$$.fragment, local);
-    			current = true;
+    		p: function update(ctx, [dirty]) {
+    			if (dirty & /*sideMenuOpen*/ 1 && div0_class_value !== (div0_class_value = "" + (null_to_empty("box" + (/*sideMenuOpen*/ ctx[0] ? " sideMenuOpen" : "")) + " svelte-1sclgn0"))) {
+    				attr_dev(div0, "class", div0_class_value);
+    			}
     		},
-    		o: function outro(local) {
-    			transition_out(login.$$.fragment, local);
-    			current = false;
-    		},
+    		i: noop,
+    		o: noop,
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(main);
-    			destroy_component(login);
+    			if (detaching) detach_dev(div1);
+    			mounted = false;
+    			dispose();
     		}
     	};
 
@@ -14570,14 +15279,159 @@ var app = (function () {
     }
 
     function instance$1($$self, $$props, $$invalidate) {
-    	onMount(async () => {
-    		const map$1 = leafletSrc.map("map", { center: [43, -79], zoom: 9 });
+    	let sideMenuOpen = false;
+    	let lat = 0, lng = 0; // tracking mouse position
+
+    	function onclick(evt) {
+    		$$invalidate(0, sideMenuOpen = !sideMenuOpen);
+    	}
+
+    	function onContextMenu(latlng, map) {
+    		$$invalidate(0, sideMenuOpen = true);
+    		map.flyTo(latlng, 13);
+    	}
+
+    	const unsubscribe = map.subscribe(map => {
+    		console.log(map);
+
+    		if (map) {
+    			map.addEventListener("mousemove", function (ev) {
+    				lat = ev.latlng.lat;
+    				lng = ev.latlng.lng;
+    			});
+
+    			map.addEventListener("contextmenu", ({ latlng }) => onContextMenu(latlng, map));
+    		}
+    	});
+
+    	const writable_props = [];
+
+    	Object.keys($$props).forEach(key => {
+    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1$1.warn(`<Home> was created with unknown prop '${key}'`);
+    	});
+
+    	let { $$slots = {}, $$scope } = $$props;
+    	validate_slots("Home", $$slots, []);
+
+    	$$self.$capture_state = () => ({
+    		_map: map,
+    		sideMenuOpen,
+    		lat,
+    		lng,
+    		onclick,
+    		onContextMenu,
+    		unsubscribe
+    	});
+
+    	$$self.$inject_state = $$props => {
+    		if ("sideMenuOpen" in $$props) $$invalidate(0, sideMenuOpen = $$props.sideMenuOpen);
+    		if ("lat" in $$props) lat = $$props.lat;
+    		if ("lng" in $$props) lng = $$props.lng;
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
+    	return [sideMenuOpen, onclick];
+    }
+
+    class Home extends SvelteComponentDev {
+    	constructor(options) {
+    		super(options);
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, {});
+
+    		dispatch_dev("SvelteRegisterComponent", {
+    			component: this,
+    			tagName: "Home",
+    			options,
+    			id: create_fragment$1.name
+    		});
+    	}
+    }
+
+    /* src\App.svelte generated by Svelte v3.23.2 */
+    const file$2 = "src\\App.svelte";
+
+    function create_fragment$2(ctx) {
+    	let div1;
+    	let div0;
+    	let t;
+    	let home;
+    	let current;
+    	home = new Home({ $$inline: true });
+
+    	const block = {
+    		c: function create() {
+    			div1 = element("div");
+    			div0 = element("div");
+    			t = space();
+    			create_component(home.$$.fragment);
+    			attr_dev(div0, "id", "map");
+    			attr_dev(div0, "class", "svelte-segg7c");
+    			add_location(div0, file$2, 48, 1, 945);
+    			attr_dev(div1, "class", "map-container svelte-segg7c");
+    			add_location(div1, file$2, 47, 0, 915);
+    		},
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+    		m: function mount(target, anchor) {
+    			insert_dev(target, div1, anchor);
+    			append_dev(div1, div0);
+    			append_dev(div1, t);
+    			mount_component(home, div1, null);
+    			current = true;
+    		},
+    		p: noop,
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(home.$$.fragment, local);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			transition_out(home.$$.fragment, local);
+    			current = false;
+    		},
+    		d: function destroy(detaching) {
+    			if (detaching) detach_dev(div1);
+    			destroy_component(home);
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_fragment$2.name,
+    		type: "component",
+    		source: "",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    function instance$2($$self, $$props, $$invalidate) {
+    	let login_state_value;
+    	let map$1;
+
+    	onMount(() => {
+    		map$1 = leafletSrc.map("map", { zoomControl: false });
+
+    		map$1.on("load", () => {
+    			map.set(map$1);
+    		});
+
+    		map$1.setView([43, -79], 9);
 
     		leafletSrc.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     			attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
     		}).addTo(map$1);
 
     		map$1.invalidateSize();
+    	});
+
+    	const unsubscribe = isLoggedIn.subscribe(value => {
+    		login_state_value = !value;
     	});
 
     	const writable_props = [];
@@ -14588,20 +15442,41 @@ var app = (function () {
 
     	let { $$slots = {}, $$scope } = $$props;
     	validate_slots("App", $$slots, []);
-    	$$self.$capture_state = () => ({ L: L$1, onMount, Login });
+
+    	$$self.$capture_state = () => ({
+    		L: L$1,
+    		onMount,
+    		Login,
+    		Home,
+    		isLoggedIn,
+    		_map: map,
+    		login_state_value,
+    		map: map$1,
+    		unsubscribe
+    	});
+
+    	$$self.$inject_state = $$props => {
+    		if ("login_state_value" in $$props) login_state_value = $$props.login_state_value;
+    		if ("map" in $$props) map$1 = $$props.map;
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
     	return [];
     }
 
     class App extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, {});
+    		init(this, options, instance$2, create_fragment$2, safe_not_equal, {});
 
     		dispatch_dev("SvelteRegisterComponent", {
     			component: this,
     			tagName: "App",
     			options,
-    			id: create_fragment$1.name
+    			id: create_fragment$2.name
     		});
     	}
     }

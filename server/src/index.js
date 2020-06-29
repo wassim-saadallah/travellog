@@ -13,8 +13,9 @@ const app = express()
 app.use(morgan('dev'))
 app.use(helmet())
 app.use(cors())
+app.use(express.json())
 
-app.use('/users', userRouter)
+app.use('/user', userRouter)
 
 connectDb().then(async () => {
   app.listen(3000, () => {
