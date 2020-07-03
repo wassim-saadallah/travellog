@@ -3,15 +3,22 @@
 	import { onMount } from 'svelte';
 	import Login from './Login.svelte';
 	import Home from './Home.svelte';
-	import { isLoggedIn, map as _map } from "./stores.js";
+	import { isLoggedIn, map as _map } from './stores.js';
 
 	let login_state_value;
-	let map; 
-
+	let map;
+	let interval = setInterval(() => {
+		console.log(window.navigator.onLine);
+	}, 500);
+	window.addEventListener('keypress', (event) => {
+		if (event.key === ' ') clearInterval(interval);
+	});
 
 	onMount(() => {
+		login_state_value = !localStorage.getItem('token');
+		console.log({ login_state_value });
 		map = L.map('map', {
-			zoomControl: false
+			zoomControl: false,
 		});
 		map.on('load', () => {
 			_map.set(map);
@@ -20,13 +27,13 @@
 
 		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 			attribution:
-			'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 		}).addTo(map);
 
 		map.invalidateSize();
 	});
 
-	const unsubscribe = isLoggedIn.subscribe(value => {
+	const unsubscribe = isLoggedIn.subscribe((value) => {
 		login_state_value = !value;
 	});
 </script>
@@ -46,10 +53,10 @@
 </style>
 
 <div class="map-container">
-	<div id="map"></div>
-	<!-- {#if login_state_value}
+	<div id="map" />
+	{#if login_state_value}
 		<Login />
-	{:else} -->
+	{:else}
 		<Home />
-	<!-- {/if} -->
+	{/if}
 </div>

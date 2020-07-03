@@ -1,4 +1,9 @@
 <script>
+	import { claim_component } from 'svelte/internal';
+
+	import VirtualList from '@sveltejs/svelte-virtual-list';
+	import Image from './Image.svelte';
+
 	import { map as _map } from './stores.js';
 
 	let sideMenuOpen = false;
@@ -6,6 +11,18 @@
 		lng = 0; // tracking mouse position
 
 	let name = 'New Title';
+	let description = '';
+	let inputs;
+	let imageUrls = [];
+
+	async function readImg(image) {
+		return new Promise((resolve, reject) => {
+			let f = new FileReader();
+			f.onloadend = (event) => resolve(event.target.result);
+			f.onerror = (err) => reject(err);
+			f.readAsDataURL(image);
+		});
+	}
 
 	function onclick(evt) {
 		sideMenuOpen = !sideMenuOpen;
@@ -14,6 +31,13 @@
 	function onContextMenu(latlng, map) {
 		sideMenuOpen = true;
 		map.flyTo(latlng, 13);
+	}
+
+	async function onInput() {
+		for (let i = 0; i < inputs.length; i++) {
+			imageUrls.push({ index: i, value: await readImg(file) });
+			imageUrls = imageUrls; // to trigger $invalidate (change detection)
+		}
 	}
 
 	const unsubscribe = _map.subscribe((map) => {
@@ -53,7 +77,6 @@
 		margin-left: 0px;
 		transition: 1s;
 	}
-
 	.button {
 		pointer-events: all;
 		margin: 5px 0px 0px 10px;
@@ -61,6 +84,16 @@
 
 	.title {
 		padding: 0.5em;
+	}
+
+	.menu {
+		display: flex;
+		flex-flow: column;
+		height: 100%;
+	}
+
+	.v-list {
+		flex-grow: 1;
 	}
 </style>
 
@@ -73,55 +106,32 @@
 					<div class="field">
 						<label class="label">Description</label>
 						<div class="control">
-							<textarea class="textarea" placeholder="Textarea" />
+							<textarea class="textarea" placeholder="Textarea" bind:value={description} />
 						</div>
 					</div>
 				</li>
 				<li>
-					<a href="/">Customers</a>
+					<div class="file">
+						<label class="file-label">
+							<input
+								class="file-input"
+								type="file"
+								name="resume"
+								bind:files={inputs}
+								on:change={onInput}
+								accept=".jpg, .jpeg, .png"
+								multiple="true" />
+							<span class="file-cta">
+								<span class="file-label">Choose a file…</span>
+							</span>
+						</label>
+					</div>
 				</li>
 			</ul>
-			<p class="menu-label">Administration</p>
-			<ul class="menu-list">
-				<li>
-					<a href="/">Team Settings</a>
-				</li>
-				<li>
-					<a href="/">Manage Your Team</a>
-					<ul>
-						<li>
-							<a href="/">Members</a>
-						</li>
-						<li>
-							<a href="/">Plugins</a>
-						</li>
-						<li>
-							<a href="/">Add a member</a>
-						</li>
-					</ul>
-				</li>
-				<li>
-					<a href="/">Invitations</a>
-				</li>
-				<li>
-					<a href="/">Cloud Storage Environment Settings</a>
-				</li>
-				<li>
-					<a href="/">Authentication</a>
-				</li>
-			</ul>
-			<p class="menu-label">Transactions</p>
-			<ul class="menu-list">
-				<li>
-					<a href="/">Payments</a>
-				</li>
-				<li>
-					<a href="/">Transfers</a>
-				</li>
-				<li>
-					<a href="/">Balance</a>
-				</li>
-			</ul>
+			<VirtualList items={imageUrls} let:item class="v-list">
+				<Image on:delete={console.log} />
+				<img src={item} alt="i don't know" class="image" />
+			</VirtualList>
 		</aside>
 	</div>
 	<button class="button is-rounded" on:click={onclick}>
