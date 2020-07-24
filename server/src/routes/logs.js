@@ -1,5 +1,7 @@
 const { Router } = require('express');
 const Log = require('../models/log');
+const multer = require('multer');
+const { update } = require('../models/log');
 
 const router = Router();
 
@@ -12,15 +14,9 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
 	console.log(req.body);
+	console.log(req.files);
 
-	const user = await User.findOne({ email }).exec();
-	if (!user) {
-		return res.status(404).send({ message: `User doesn't exist` });
-	}
-
-	const result = await new User(req.body).save();
-	console.log(result);
-	return res.send({ token: newUser._id });
+	return res.send({ success: true });
 });
 
 module.exports = router;

@@ -7,12 +7,6 @@
 
 	let login_state_value;
 	let map;
-	let interval = setInterval(() => {
-		console.log(window.navigator.onLine);
-	}, 500);
-	window.addEventListener('keypress', (event) => {
-		if (event.key === ' ') clearInterval(interval);
-	});
 
 	onMount(() => {
 		login_state_value = !localStorage.getItem('token');

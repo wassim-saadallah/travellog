@@ -4,15 +4,15 @@
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 	import Image from './Image.svelte';
 
-	import { map as _map } from './stores.js';
+	import { map as _map, token } from './stores.js';
 
 	let sideMenuOpen = false;
-	let lat = 0,
-		lng = 0; // tracking mouse position
+	let lat, lng; // where last clicked
 
 	let name = 'New Title';
 	let description = '';
-	let inputs;
+	let inputs = [];
+
 	let imageUrls = [];
 
 	async function readImg(image) {
@@ -24,29 +24,67 @@
 		});
 	}
 
+	function deleteImage(index) {
+		console.log('Deleting image', index);
+		imageUrls.splice(
+			imageUrls.findIndex((item, _) => item.index === index),
+			1
+		);
+		console.log({ index, imageUrls });
+		imageUrls = imageUrls;
+	}
+
 	function onclick(evt) {
 		sideMenuOpen = !sideMenuOpen;
 	}
 
 	function onContextMenu(latlng, map) {
+		lat = latlng.lat;
+		lng = latlng.lng;
 		sideMenuOpen = true;
 		map.flyTo(latlng, 13);
 	}
 
 	async function onInput() {
 		for (let i = 0; i < inputs.length; i++) {
-			imageUrls.push({ index: i, value: await readImg(file) });
+			imageUrls.push({ index: i, value: await readImg(inputs[i]) });
 			imageUrls = imageUrls; // to trigger $invalidate (change detection)
+		}
+	}
+
+	async function addLog() {
+		if (!lat && !lng) {
+			// do something
+			console.error('no position selected');
+			return;
+		}
+		let form = new FormData();
+		let userData = JSON.stringify({
+			userId: localStorage.getItem('token'),
+			name: name === 'New Title' ? '' : name,
+			description,
+			location: [lng, lat],
+		});
+		form.append('userData', userData);
+		if (inputs) {
+			form.append('images', inputs);
+		}
+		console.log(form.get('images'));
+		try {
+			const result = await fetch('http://localhost:3000/logs', {
+				method: 'POST',
+				body: form,
+			}).then((res) => res.json());
+			console.log(result);
+		} catch (err) {
+			// TODO: Show error on screen
+			console.log(err);
 		}
 	}
 
 	const unsubscribe = _map.subscribe((map) => {
 		console.log(map);
 		if (map) {
-			map.addEventListener('mousemove', function (ev) {
-				lat = ev.latlng.lat;
-				lng = ev.latlng.lng;
-			});
 			map.addEventListener('contextmenu', ({ latlng }) => onContextMenu(latlng, map));
 		}
 	});
@@ -129,9 +167,9 @@
 				</li>
 			</ul>
 			<VirtualList items={imageUrls} let:item class="v-list">
-				<Image on:delete={console.log} />
-				<img src={item} alt="i don't know" class="image" />
+				<Image image={item.value} on:delete={deleteImage(item.index)} />
 			</VirtualList>
+			<button class="button" on:click={addLog}>Save Me !</button>
 		</aside>
 	</div>
 	<button class="button is-rounded" on:click={onclick}>
