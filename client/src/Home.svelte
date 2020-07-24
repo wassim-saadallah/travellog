@@ -1,6 +1,5 @@
 <script>
-	import { claim_component } from 'svelte/internal';
-
+  import * as L from 'leaflet';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 	import Image from './Image.svelte';
 
@@ -11,9 +10,10 @@
 
 	let name = 'New Title';
 	let description = '';
-	let inputs = [];
+	let inputs
 
 	let imageUrls = [];
+  let map;
 
 	async function readImg(image) {
 		return new Promise((resolve, reject) => {
@@ -52,37 +52,48 @@
 		}
 	}
 
-	async function addLog() {
-		if (!lat && !lng) {
-			// do something
-			console.error('no position selected');
-			return;
-		}
-		let form = new FormData();
-		let userData = JSON.stringify({
-			userId: localStorage.getItem('token'),
-			name: name === 'New Title' ? '' : name,
-			description,
-			location: [lng, lat],
-		});
-		form.append('userData', userData);
-		if (inputs) {
-			form.append('images', inputs);
-		}
-		console.log(form.get('images'));
-		try {
-			const result = await fetch('http://localhost:3000/logs', {
-				method: 'POST',
-				body: form,
-			}).then((res) => res.json());
-			console.log(result);
-		} catch (err) {
-			// TODO: Show error on screen
-			console.log(err);
-		}
-	}
+  async function addLog() {
+    if (!lat && !lng) {
+      // do something
+      console.error('no position selected');
+      return;
+    }
+    let form = new FormData();
+    let userData = JSON.stringify({
+      userId: localStorage.getItem('token'),
+      name: name === 'New Title' ? '' : name,
+      description,
+      location: [lng, lat],
+    });
+    form.append('userData', userData);
+    console.log(inputs);
+    if (inputs) {
+      for (let file of inputs) {
+        form.append('images', file);
+      }
+    }
+    console.log(form.get('images'));
+    try {
+      const result = await fetch('http://localhost:3000/logs', {
+        method: 'POST',
+        body: form,
+      }).then((res) => res.json());
+      if (result.success && result.logMarkerPosition) {
+        if (map) {
+          console.log(result.logMarkerPosition);
+          L.marker([result.logMarkerPosition[1], result.logMarkerPosition[0]]).addTo(map);
+        } else {
+          throw new Error("leafletJS map not loaded");
+        }
+      }
+    } catch (err) {
+      // TODO: Show error on screen
+      console.log(err);
+    }
+  }
 
-	const unsubscribe = _map.subscribe((map) => {
+	const unsubscribe = _map.subscribe((__map) => {
+    map = __map;
 		console.log(map);
 		if (map) {
 			map.addEventListener('contextmenu', ({ latlng }) => onContextMenu(latlng, map));
