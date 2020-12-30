@@ -15928,18 +15928,18 @@ var app = (function () {
     const { Error: Error_1, console: console_1$1 } = globals;
     const file$3 = "src\\Home.svelte";
 
-    // (180:3) <VirtualList items={imageUrls} let:item class="v-list">
+    // (228:3) <VirtualList items={imageUrls} let:item class="v-list">
     function create_default_slot(ctx) {
     	let image;
     	let current;
 
     	image = new Image({
-    			props: { image: /*item*/ ctx[17].value },
+    			props: { image: /*item*/ ctx[19].value },
     			$$inline: true
     		});
 
     	image.$on("delete", function () {
-    		if (is_function(/*deleteImage*/ ctx[5](/*item*/ ctx[17].index))) /*deleteImage*/ ctx[5](/*item*/ ctx[17].index).apply(this, arguments);
+    		if (is_function(/*deleteImage*/ ctx[5](/*item*/ ctx[19].index))) /*deleteImage*/ ctx[5](/*item*/ ctx[19].index).apply(this, arguments);
     	});
 
     	const block = {
@@ -15953,7 +15953,7 @@ var app = (function () {
     		p: function update(new_ctx, dirty) {
     			ctx = new_ctx;
     			const image_changes = {};
-    			if (dirty & /*item*/ 131072) image_changes.image = /*item*/ ctx[17].value;
+    			if (dirty & /*item*/ 524288) image_changes.image = /*item*/ ctx[19].value;
     			image.$set(image_changes);
     		},
     		i: function intro(local) {
@@ -15974,7 +15974,7 @@ var app = (function () {
     		block,
     		id: create_default_slot.name,
     		type: "slot",
-    		source: "(180:3) <VirtualList items={imageUrls} let:item class=\\\"v-list\\\">",
+    		source: "(228:3) <VirtualList items={imageUrls} let:item class=\\\"v-list\\\">",
     		ctx
     	});
 
@@ -16022,8 +16022,8 @@ var app = (function () {
     				$$slots: {
     					default: [
     						create_default_slot,
-    						({ item }) => ({ 17: item }),
-    						({ item }) => item ? 131072 : 0
+    						({ item }) => ({ 19: item }),
+    						({ item }) => item ? 524288 : 0
     					]
     				},
     				$$scope: { ctx }
@@ -16067,47 +16067,47 @@ var app = (function () {
     			attr_dev(h3, "class", "title is-3 svelte-j9bmaz");
     			attr_dev(h3, "contenteditable", "true");
     			if (/*name*/ ctx[1] === void 0) add_render_callback(() => /*h3_input_handler*/ ctx[9].call(h3));
-    			add_location(h3, file$3, 151, 3, 3342);
+    			add_location(h3, file$3, 199, 3, 4285);
     			attr_dev(label0, "class", "label");
-    			add_location(label0, file$3, 155, 6, 3495);
+    			add_location(label0, file$3, 203, 6, 4438);
     			attr_dev(textarea, "class", "textarea");
     			attr_dev(textarea, "placeholder", "Textarea");
-    			add_location(textarea, file$3, 157, 7, 3573);
+    			add_location(textarea, file$3, 205, 7, 4516);
     			attr_dev(div0, "class", "control");
-    			add_location(div0, file$3, 156, 6, 3543);
+    			add_location(div0, file$3, 204, 6, 4486);
     			attr_dev(div1, "class", "field");
-    			add_location(div1, file$3, 154, 5, 3468);
-    			add_location(li0, file$3, 153, 4, 3457);
+    			add_location(div1, file$3, 202, 5, 4411);
+    			add_location(li0, file$3, 201, 4, 4400);
     			attr_dev(input, "class", "file-input");
     			attr_dev(input, "type", "file");
     			attr_dev(input, "name", "resume");
     			attr_dev(input, "accept", ".jpg, .jpeg, .png");
     			input.multiple = "true";
-    			add_location(input, file$3, 164, 7, 3766);
+    			add_location(input, file$3, 212, 7, 4709);
     			attr_dev(span0, "class", "file-label");
-    			add_location(span0, file$3, 173, 8, 4008);
+    			add_location(span0, file$3, 221, 8, 4951);
     			attr_dev(span1, "class", "file-cta");
-    			add_location(span1, file$3, 172, 7, 3975);
+    			add_location(span1, file$3, 220, 7, 4918);
     			attr_dev(label1, "class", "file-label");
-    			add_location(label1, file$3, 163, 6, 3731);
+    			add_location(label1, file$3, 211, 6, 4674);
     			attr_dev(div2, "class", "file");
-    			add_location(div2, file$3, 162, 5, 3705);
-    			add_location(li1, file$3, 161, 4, 3694);
+    			add_location(div2, file$3, 210, 5, 4648);
+    			add_location(li1, file$3, 209, 4, 4637);
     			attr_dev(ul, "class", "menu-list");
-    			add_location(ul, file$3, 152, 3, 3429);
+    			add_location(ul, file$3, 200, 3, 4372);
     			attr_dev(button0, "class", "button svelte-j9bmaz");
-    			add_location(button0, file$3, 182, 3, 4274);
+    			add_location(button0, file$3, 230, 3, 5217);
     			attr_dev(aside, "class", "menu svelte-j9bmaz");
-    			add_location(aside, file$3, 150, 2, 3317);
+    			add_location(aside, file$3, 198, 2, 4260);
     			attr_dev(div3, "class", div3_class_value = "" + (null_to_empty("box" + (/*sideMenuOpen*/ ctx[0] ? " sideMenuOpen" : "")) + " svelte-j9bmaz"));
-    			add_location(div3, file$3, 149, 1, 3254);
+    			add_location(div3, file$3, 197, 1, 4197);
     			attr_dev(img, "alt", "menu");
     			if (img.src !== (img_src_value = "https://img.icons8.com/material-sharp/24/000000/menu.png")) attr_dev(img, "src", img_src_value);
-    			add_location(img, file$3, 186, 2, 4414);
+    			add_location(img, file$3, 234, 2, 5357);
     			attr_dev(button1, "class", "button is-rounded svelte-j9bmaz");
-    			add_location(button1, file$3, 185, 1, 4357);
+    			add_location(button1, file$3, 233, 1, 5300);
     			attr_dev(div4, "class", "overlay svelte-j9bmaz");
-    			add_location(div4, file$3, 148, 0, 3230);
+    			add_location(div4, file$3, 196, 0, 4173);
     		},
     		l: function claim(nodes) {
     			throw new Error_1("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -16153,9 +16153,9 @@ var app = (function () {
     					listen_dev(h3, "input", /*h3_input_handler*/ ctx[9]),
     					listen_dev(textarea, "input", /*textarea_input_handler*/ ctx[10]),
     					listen_dev(input, "change", /*input_change_handler*/ ctx[11]),
-    					listen_dev(input, "change", /*onInput*/ ctx[7], false, false, false),
-    					listen_dev(button0, "click", /*addLog*/ ctx[8], false, false, false),
-    					listen_dev(button1, "click", /*onclick*/ ctx[6], false, false, false)
+    					listen_dev(input, "change", /*onInput*/ ctx[8], false, false, false),
+    					listen_dev(button0, "click", /*addLog*/ ctx[6], false, false, false),
+    					listen_dev(button1, "click", /*onclick*/ ctx[7], false, false, false)
     				];
 
     				mounted = true;
@@ -16173,7 +16173,7 @@ var app = (function () {
     			const virtuallist_changes = {};
     			if (dirty & /*imageUrls*/ 16) virtuallist_changes.items = /*imageUrls*/ ctx[4];
 
-    			if (dirty & /*$$scope, item*/ 393216) {
+    			if (dirty & /*$$scope, item*/ 1572864) {
     				virtuallist_changes.$$scope = { dirty, ctx };
     			}
 
@@ -16211,6 +16211,14 @@ var app = (function () {
     	return block;
     }
 
+    async function fetchLogs() {
+    	console.log(localStorage.getItem("token"));
+
+    	return fetch("http://localhost:3000/logs?user=" + localStorage.getItem("token"), {
+    		headers: { "Content-Type": "application/json" }
+    	}).then(res => res.json());
+    }
+
     async function readImg(image) {
     	return new Promise((resolve, reject) => {
     			let f = new FileReader();
@@ -16218,6 +16226,11 @@ var app = (function () {
     			f.onerror = err => reject(err);
     			f.readAsDataURL(image);
     		});
+    }
+
+    // event handlers
+    function onMarkerClick(ev) {
+    	console.log("marker clicked in coords", this._latlng);
     }
 
     function instance$3($$self, $$props, $$invalidate) {
@@ -16228,34 +16241,13 @@ var app = (function () {
     	let inputs;
     	let imageUrls = [];
     	let map$1;
+    	let marker$1;
 
     	function deleteImage(index) {
     		console.log("Deleting image", index);
     		imageUrls.splice(imageUrls.findIndex((item, _) => item.index === index), 1);
     		console.log({ index, imageUrls });
     		$$invalidate(4, imageUrls);
-    	}
-
-    	function onclick(evt) {
-    		$$invalidate(0, sideMenuOpen = !sideMenuOpen);
-    	}
-
-    	function onContextMenu(latlng, map) {
-    		lat = latlng.lat;
-    		lng = latlng.lng;
-    		$$invalidate(0, sideMenuOpen = true);
-    		map.flyTo(latlng, 13);
-    	}
-
-    	async function onInput() {
-    		for (let i = 0; i < inputs.length; i++) {
-    			imageUrls.push({
-    				index: i,
-    				value: await readImg(inputs[i])
-    			});
-
-    			$$invalidate(4, imageUrls); // to trigger $invalidate (change detection)
-    		}
     	}
 
     	async function addLog() {
@@ -16292,7 +16284,7 @@ var app = (function () {
     			if (result.success && result.logMarkerPosition) {
     				if (map$1) {
     					console.log(result.logMarkerPosition);
-    					leafletSrc.marker([result.logMarkerPosition[1], result.logMarkerPosition[0]]).addTo(map$1);
+    					createMarker([result.logMarkerPosition[1], result.logMarkerPosition[0]]).addTo(map$1);
     				} else {
     					throw new Error("leafletJS map not loaded");
     				}
@@ -16303,12 +16295,62 @@ var app = (function () {
     		}
     	}
 
+    	function createMarker(coords) {
+    		const marker$1 = leafletSrc.marker(coords);
+    		marker$1.addEventListener("click", onMarkerClick);
+    		return marker$1;
+    	}
+
+    	function onclick(evt) {
+    		$$invalidate(0, sideMenuOpen = !sideMenuOpen);
+    	}
+
+    	function onContextMenu(latlng, map) {
+    		lat = latlng.lat;
+    		lng = latlng.lng;
+    		$$invalidate(0, sideMenuOpen = true);
+    		map.flyTo(latlng, 13);
+    		console.log("marker in ", latlng);
+
+    		if (marker$1) {
+    			marker$1.setLatLng(latlng);
+    		} else {
+    			marker$1 = leafletSrc.marker(latlng);
+    			marker$1.addTo(map);
+    		}
+    	}
+
+    	async function onInput() {
+    		for (let i = 0; i < inputs.length; i++) {
+    			imageUrls.push({
+    				index: i,
+    				value: await readImg(inputs[i])
+    			});
+
+    			$$invalidate(4, imageUrls); // to trigger $invalidate (change detection)
+    		}
+    	}
+
     	const unsubscribe = map.subscribe(__map => {
     		map$1 = __map;
     		console.log(map$1);
 
     		if (map$1) {
     			map$1.addEventListener("contextmenu", ({ latlng }) => onContextMenu(latlng, map$1));
+
+    			isLoggedIn.subscribe(async loggedIn => {
+    				console.log(loggedIn);
+
+    				if (loggedIn) {
+    					console.log("fetching logs");
+    					const logs = await fetchLogs();
+
+    					for (let log of logs) {
+    						const marker = createMarkerFromLog(log);
+    						marker.addTo(map$1);
+    					}
+    				}
+    			});
     		}
     	});
 
@@ -16340,6 +16382,7 @@ var app = (function () {
     		L: L$1,
     		VirtualList,
     		Image,
+    		isLoggedIn,
     		_map: map,
     		token,
     		sideMenuOpen,
@@ -16350,12 +16393,16 @@ var app = (function () {
     		inputs,
     		imageUrls,
     		map: map$1,
+    		marker: marker$1,
+    		fetchLogs,
     		readImg,
     		deleteImage,
+    		addLog,
+    		createMarker,
+    		onMarkerClick,
     		onclick,
     		onContextMenu,
     		onInput,
-    		addLog,
     		unsubscribe
     	});
 
@@ -16368,6 +16415,7 @@ var app = (function () {
     		if ("inputs" in $$props) $$invalidate(3, inputs = $$props.inputs);
     		if ("imageUrls" in $$props) $$invalidate(4, imageUrls = $$props.imageUrls);
     		if ("map" in $$props) map$1 = $$props.map;
+    		if ("marker" in $$props) marker$1 = $$props.marker;
     	};
 
     	if ($$props && "$$inject" in $$props) {
@@ -16381,9 +16429,9 @@ var app = (function () {
     		inputs,
     		imageUrls,
     		deleteImage,
+    		addLog,
     		onclick,
     		onInput,
-    		addLog,
     		h3_input_handler,
     		textarea_input_handler,
     		input_change_handler
@@ -16409,7 +16457,7 @@ var app = (function () {
     const { console: console_1$2 } = globals;
     const file$4 = "src\\App.svelte";
 
-    // (53:1) {:else}
+    // (51:1) {:else}
     function create_else_block(ctx) {
     	let home;
     	let current;
@@ -16441,14 +16489,14 @@ var app = (function () {
     		block,
     		id: create_else_block.name,
     		type: "else",
-    		source: "(53:1) {:else}",
+    		source: "(51:1) {:else}",
     		ctx
     	});
 
     	return block;
     }
 
-    // (51:1) {#if login_state_value}
+    // (49:1) {#if !login_state_value}
     function create_if_block$1(ctx) {
     	let login;
     	let current;
@@ -16480,7 +16528,7 @@ var app = (function () {
     		block,
     		id: create_if_block$1.name,
     		type: "if",
-    		source: "(51:1) {#if login_state_value}",
+    		source: "(49:1) {#if !login_state_value}",
     		ctx
     	});
 
@@ -16498,7 +16546,7 @@ var app = (function () {
     	const if_blocks = [];
 
     	function select_block_type(ctx, dirty) {
-    		if (/*login_state_value*/ ctx[0]) return 0;
+    		if (!/*login_state_value*/ ctx[0]) return 0;
     		return 1;
     	}
 
@@ -16513,9 +16561,9 @@ var app = (function () {
     			if_block.c();
     			attr_dev(div0, "id", "map");
     			attr_dev(div0, "class", "svelte-segg7c");
-    			add_location(div0, file$4, 49, 1, 1040);
+    			add_location(div0, file$4, 47, 1, 988);
     			attr_dev(div1, "class", "map-container svelte-segg7c");
-    			add_location(div1, file$4, 48, 0, 1010);
+    			add_location(div1, file$4, 46, 0, 958);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -16581,7 +16629,8 @@ var app = (function () {
     	let map$1;
 
     	onMount(() => {
-    		$$invalidate(0, login_state_value = !localStorage.getItem("token"));
+    		$$invalidate(0, login_state_value = !!localStorage.getItem("token"));
+    		isLoggedIn.set(!!login_state_value);
     		console.log({ login_state_value });
     		map$1 = leafletSrc.map("map", { zoomControl: false });
 
@@ -16596,10 +16645,6 @@ var app = (function () {
     		}).addTo(map$1);
 
     		map$1.invalidateSize();
-    	});
-
-    	const unsubscribe = isLoggedIn.subscribe(value => {
-    		$$invalidate(0, login_state_value = !value);
     	});
 
     	const writable_props = [];
@@ -16619,8 +16664,7 @@ var app = (function () {
     		isLoggedIn,
     		_map: map,
     		login_state_value,
-    		map: map$1,
-    		unsubscribe
+    		map: map$1
     	});
 
     	$$self.$inject_state = $$props => {

@@ -1,9 +1,9 @@
 <script>
-  import * as L from 'leaflet';
+  	import * as L from 'leaflet';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 	import Image from './Image.svelte';
 
-	import { map as _map, token } from './stores.js';
+	import { isLoggedIn, map as _map, token } from './stores.js';
 
 	let sideMenuOpen = false;
 	let lat, lng; // where last clicked
@@ -13,7 +13,21 @@
 	let inputs
 
 	let imageUrls = [];
-  let map;
+  	let map;
+
+	let marker;
+
+	// utility functions
+	async function fetchLogs() {
+		console.log(localStorage.getItem('token'));
+		return fetch("http://localhost:3000/logs?user=" + localStorage.getItem('token'),
+			{
+				headers: {
+					'Content-Type': 'application/json',
+				},
+			}).then((res) => res.json());
+	}
+
 
 	async function readImg(image) {
 		return new Promise((resolve, reject) => {
@@ -34,6 +48,59 @@
 		imageUrls = imageUrls;
 	}
 
+	async function addLog() {
+		if (!lat && !lng) {
+			// do something
+			console.error('no position selected');
+			return;
+		}
+		let form = new FormData();
+		let userData = JSON.stringify({
+			userId: localStorage.getItem('token'),
+			name: name === 'New Title' ? '' : name,
+			description,
+			location: [lng, lat],
+		});
+		form.append('userData', userData);
+		console.log(inputs);
+		if (inputs) {
+			for (let file of inputs) {
+				form.append('images', file);
+			}
+		}
+		console.log(form.get('images'));
+		try {
+			const result = await fetch('http://localhost:3000/logs', {
+				method: 'POST',
+				body: form,
+			}).then((res) => res.json());
+			if (result.success && result.logMarkerPosition) {
+				if (map) {
+					console.log(result.logMarkerPosition);
+					createMarker([result.logMarkerPosition[1], result.logMarkerPosition[0]]).addTo(map);
+				} else {
+					throw new Error("leafletJS map not loaded");
+				}
+			}
+		} catch (err) {
+			// TODO: Show error on screen
+			console.log(err);
+		}
+	}
+
+	function createMarker(coords) {
+		const marker = L.marker(coords);
+		marker.addEventListener('click', onMarkerClick);
+		return marker;
+	}
+
+
+
+	// event handlers
+	function onMarkerClick(ev) {
+		console.log("marker clicked in coords", this._latlng);
+	}
+
 	function onclick(evt) {
 		sideMenuOpen = !sideMenuOpen;
 	}
@@ -43,6 +110,14 @@
 		lng = latlng.lng;
 		sideMenuOpen = true;
 		map.flyTo(latlng, 13);
+		console.log("marker in ", latlng);
+		if (marker) {
+			marker.setLatLng(latlng);
+		}
+		else {
+			marker = L.marker(latlng);
+			marker.addTo(map);
+		}
 	}
 
 	async function onInput() {
@@ -52,53 +127,26 @@
 		}
 	}
 
-  async function addLog() {
-    if (!lat && !lng) {
-      // do something
-      console.error('no position selected');
-      return;
-    }
-    let form = new FormData();
-    let userData = JSON.stringify({
-      userId: localStorage.getItem('token'),
-      name: name === 'New Title' ? '' : name,
-      description,
-      location: [lng, lat],
-    });
-    form.append('userData', userData);
-    console.log(inputs);
-    if (inputs) {
-      for (let file of inputs) {
-        form.append('images', file);
-      }
-    }
-    console.log(form.get('images'));
-    try {
-      const result = await fetch('http://localhost:3000/logs', {
-        method: 'POST',
-        body: form,
-      }).then((res) => res.json());
-      if (result.success && result.logMarkerPosition) {
-        if (map) {
-          console.log(result.logMarkerPosition);
-          L.marker([result.logMarkerPosition[1], result.logMarkerPosition[0]]).addTo(map);
-        } else {
-          throw new Error("leafletJS map not loaded");
-        }
-      }
-    } catch (err) {
-      // TODO: Show error on screen
-      console.log(err);
-    }
-  }
-
 	const unsubscribe = _map.subscribe((__map) => {
-    map = __map;
+		map = __map;
 		console.log(map);
 		if (map) {
 			map.addEventListener('contextmenu', ({ latlng }) => onContextMenu(latlng, map));
+
+			isLoggedIn.subscribe(async (loggedIn) => {
+				console.log(loggedIn);
+				if (loggedIn) {
+					console.log("fetching logs");
+					const logs = await fetchLogs();
+					for (let log of logs) {
+						const marker = createMarkerFromLog(log);
+						marker.addTo(map);
+					}
+				}
+			})
 		}
 	});
+
 </script>
 
 <style>

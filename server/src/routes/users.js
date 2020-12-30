@@ -5,6 +5,7 @@ const router = Router()
 
 router.get('/', async (req, res) => {
   const { email } = req.query
+  console.log(email)
   if (email == null || email === '') {
     return res.status(403).send({ message: `Not a valid email` })
   }

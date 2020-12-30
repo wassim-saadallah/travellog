@@ -9,7 +9,8 @@
 	let map;
 
 	onMount(() => {
-		login_state_value = !localStorage.getItem('token');
+		login_state_value = !!localStorage.getItem('token');
+		isLoggedIn.set(!!login_state_value);
 		console.log({ login_state_value });
 		map = L.map('map', {
 			zoomControl: false,
@@ -27,9 +28,6 @@
 		map.invalidateSize();
 	});
 
-	const unsubscribe = isLoggedIn.subscribe((value) => {
-		login_state_value = !value;
-	});
 </script>
 
 <style>
@@ -48,7 +46,7 @@
 
 <div class="map-container">
 	<div id="map" />
-	{#if login_state_value}
+	{#if !login_state_value}
 		<Login />
 	{:else}
 		<Home />
